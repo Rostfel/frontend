@@ -68,7 +68,7 @@ export default function App() {
   const [culture, setCulture] = useState('');
   const [areaSize, setAreaSize] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!coordinates.length || !culture || !areaSize) {
@@ -76,8 +76,34 @@ export default function App() {
       return;
     }
 
-    // Proceed with form submission logic here
+    const formData = {
+      coordinates: coordinates,
+      culture: culture,
+      areaSize: areaSize,
+    };
+
     console.log('Form submitted with:', { coordinates, culture, areaSize });
+
+    try {
+      const response = await fetch('http://localhost:1323/api/calculate', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+          throw new Error('Ошибка при отправке данных');
+      }
+
+      const result = await response.json();
+      console.log('Ответ от сервера:', result);
+      alert(result.message); 
+    } catch (error) {
+      console.error('Ошибка:', error);
+      alert('Произошла ошибка при отправке данных');
+    }
   };
 
 
