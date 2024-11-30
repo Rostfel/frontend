@@ -9,12 +9,13 @@ import { Draw } from 'ol/interaction';
 import { Vector as VectorLayer } from 'ol/layer';
 import { Vector as VectorSource } from 'ol/source';
 import { Feature } from 'ol';
-import { Point } from 'ol/geom';
-
+import { Polygon } from 'ol/geom';
+import { getArea } from 'ol/sphere';
 
 export default function App() {
-
   const [coordinates, setCoordinates] = useState([]);
+  const [areaSize, setAreaSize] = useState(0);
+  const [culture, setCulture] = useState('');
 
   useEffect(() => {
     // Initialize the map
@@ -26,7 +27,7 @@ export default function App() {
         }),
       ],
       view: new View({
-        center: fromLonLat([39.71230328261182, 47.2371969319224]), // start coordinates
+        center: fromLonLat([39.71230328261182, 47.2371969319224]),
         zoom: 5,
       }),
       controls: []
@@ -39,34 +40,36 @@ export default function App() {
     });
     map.addLayer(vectorLayer);
 
-    // Add draw interaction for points
+    // Add draw interaction for polygons
     const draw = new Draw({
       source: vectorSource,
-      type: 'Point',
+      type: 'Polygon',
     });
 
     map.addInteraction(draw);
+
+    draw.on('drawstart', (event) => {
+      vectorSource.clear();
+    }),
+
     draw.on('drawend', (event) => {
       vectorSource.clear();
 
       const geom = event.feature.getGeometry();
-      const coords = geom.getCoordinates();
-      const lonLatCoords = toLonLat(coords);
+      const coords = geom.getCoordinates()[0]; // Get the first ring of the polygon
+      const lonLatCoords = coords.map(coord => toLonLat(coord));
 
-      setCoordinates([{
-        lon: lonLatCoords[0],
-        lat: lonLatCoords[1]
-      }]);
+      setCoordinates(lonLatCoords);
+      
+      // Calculate area in square meters and convert to hectares (1 hectare = 10000 square meters)
+      const areaInMeters = getArea(geom);
+      setAreaSize(areaInMeters / 10000); // Convert to hectares
 
       vectorSource.addFeature(new Feature(geom));
     });
 
     return () => map.setTarget(undefined);
   }, []);
-
-
-  const [culture, setCulture] = useState('');
-  const [areaSize, setAreaSize] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,20 +109,18 @@ export default function App() {
     }
   };
 
-
   return (
     <>
       <h1>Агрокалькулятор</h1>
 
       <form className="new-item-form" onSubmit={handleSubmit}>
-
         <div className="form-row">
           <label htmlFor="culture-select">Выберите агрокультуру</label>
           <select 
-          name="culture" 
-          id="culture-select"
-          value={culture}
-          onChange={(e) => setCulture(e.target.value)}
+            name="culture" 
+            id="culture-select"
+            value={culture}
+            onChange={(e) => setCulture(e.target.value)}
           >
             <option value="" disabled selected>Выберите</option>
             <option value="tomato">Помидор</option>
@@ -129,26 +130,14 @@ export default function App() {
         </div>
 
         <div className="form-row">
-        <label htmlFor="areasize-select">Укажите размер участка в га</label>
-        <input 
-        name="areasize" 
-        id="areasize-select" 
-        type="number" 
-        placeholder={0} 
-        min={0}
-        value={areaSize}
-        onChange={(e) => setAreaSize(e.target.value)}
-        >
-        </input>
-        </div>
-
-        <div className="form-row">
           <label>Выберите место выращивания культуры на карте:</label>
           <div id="map" style={{ width: '100%', height: '400px' }}></div>
           {coordinates.length > 0 && (
             <div>
               <h3>Координаты:</h3>
               <pre>{JSON.stringify(coordinates, null, 2)}</pre>
+              <h3>Размер участка:</h3>
+              <pre>{areaSize.toFixed(2)} га</pre>
             </div>
           )}
         </div>
